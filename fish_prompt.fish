@@ -14,7 +14,10 @@ set -gx VIRTUAL_ENV_DISABLE_PROMPT 1
 __pure_set_default pure_symbol_prompt "❯"
 __pure_set_default pure_symbol_git_down_arrow "⇣"
 __pure_set_default pure_symbol_git_up_arrow "⇡"
-__pure_set_default pure_symbol_git_dirty "*"
+__pure_set_default pure_symbol_git_dirty "+"
+__pure_set_default pure_symbol_git_unstaged "!"
+__pure_set_default pure_symbol_git_untracked "?"
+__pure_set_default pure_symbol_git_stashed "\$"
 __pure_set_default pure_symbol_horizontal_bar "—"
 
 # Colors
@@ -45,8 +48,7 @@ function pre_prompt --on-event fish_prompt
   set -l user_and_host ""
   set -l current_folder (__parse_current_folder)
   set -l git_branch_name ""
-  set -l git_dirty ""
-  set -l git_arrows ""
+  set -l git_status ""
   set -l command_duration ""
   set -l pre_prompt ""
 
@@ -92,29 +94,38 @@ function pre_prompt --on-event fish_prompt
     set -l is_git_dirty (command git status --porcelain --ignore-submodules ^/dev/null)
 
     if test -n "$is_git_dirty"
-      set git_dirty $pure_symbol_git_dirty
+      set git_status "$git_status$pure_symbol_git_dirty"
+    end
+
+    if test -n (command git diff-files --quiet --ignore-submodules --)
+      set git_status "$git_status$pure_symbol_git_unstaged"
+    end
+
+    set -l has_git_untracked (command git ls-files --others --exclude-standard)
+    if test -n "$has_git_untracked"
+      set git_status "$git_status$pure_symbol_git_untracked"
     end
 
     # Check if there is an upstream configured
     command git rev-parse --abbrev-ref '@{upstream}' >/dev/null ^&1; and set -l has_upstream
     if set -q has_upstream
-      set -l git_status (string split ' ' (string replace -ar '\s+' ' ' (command git rev-list --left-right --count 'HEAD...@{upstream}')))
+      set -l git_statusx (string split ' ' (string replace -ar '\s+' ' ' (command git rev-list --left-right --count 'HEAD...@{upstream}')))
 
-      set -l git_arrow_left $git_status[1]
-      set -l git_arrow_right $git_status[2] 
+      set -l git_arrow_left $git_statusx[1]
+      set -l git_arrow_right $git_statusx[2] 
 
       # If arrow is not "0", it means it's dirty
       if test $git_arrow_left != 0
-        set git_arrows " $pure_symbol_git_up_arrow"
+        set git_status "$git_status$pure_symbol_git_up_arrow"
       end
 
       if test $git_arrow_right != 0
-        set git_arrows " $git_arrows$pure_symbol_git_down_arrow"
+        set git_status "$git_status$git_arrows$pure_symbol_git_down_arrow"
       end
     end
-
+    
     # Format Git prompt output
-    set pre_prompt $pre_prompt "$pure_color_gray$git_branch_name$git_dirty$pure_color_normal$pure_color_cyan$git_arrows$pure_color_normal "
+    set pre_prompt $pre_prompt "$pure_color_gray$git_branch_name$pure_color_blue [$git_status] "
   end
 
   if test $pure_user_host_location -ne 1
